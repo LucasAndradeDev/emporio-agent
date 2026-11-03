@@ -1,8 +1,8 @@
-"""Ferramentas expostas ao LLM.
+"""Tools exposed to the LLM.
 
-A docstring de cada ferramenta é o que o modelo lê para decidir quando usá-la,
-então ela descreve o "quando" (não só o "o quê"). As ferramentas devolvem JSON
-para o modelo ler os campos sem ambiguidade.
+Each tool's docstring is what the model reads to decide when to call it, so it
+describes the "when" and not only the "what". Tools return JSON so the model can
+read the fields unambiguously.
 """
 
 from __future__ import annotations
@@ -16,118 +16,119 @@ import data
 import policies
 
 
-def _json(valor) -> str:
-    return json.dumps(valor, ensure_ascii=False, default=str)
+def _json(value) -> str:
+    return json.dumps(value, ensure_ascii=False, default=str)
 
 
 @tool
-def buscar_produtos(
-    termo: str | None = None,
-    categoria: str | None = None,
-    preco_max: float | None = None,
-    preco_min: float | None = None,
-    incluir_indisponiveis: bool = False,
+def search_products(
+    query: str | None = None,
+    category: str | None = None,
+    max_price: float | None = None,
+    min_price: float | None = None,
+    include_unavailable: bool = False,
 ) -> str:
-    """Busca instrumentos no catálogo da loja.
+    """Searches the store's instrument catalog.
 
-    Use quando o cliente quer opções ou recomendações: "violões até R$ 1000",
-    "tem guitarra Fender?", "ukulele para iniciante". Os resultados vêm do mais
-    barato para o mais caro, já com preço de tabela, preço no PIX ou promoção ativa.
+    Use when the customer wants options or recommendations: "violões até R$ 1000",
+    "tem guitarra Fender?", "ukulele para iniciante". Results are sorted from cheapest
+    to most expensive and already include list price, PIX price or active promotion.
 
     Args:
-        termo: palavras do nome ou da descrição (marca, modelo, característica). Ex.: "fender", "7 cordas", "nylon".
-        categoria: Guitarras, Baixos, Baterias e Percussão, Teclados e Pianos, Violões,
+        query: words from the product name or description (brand, model, feature). E.g. "fender", "7 cordas", "nylon".
+        category: one of Guitarras, Baixos, Baterias e Percussão, Teclados e Pianos, Violões,
             Instrumentos de Sopro (Madeiras), Instrumentos de Sopro (Metais), Cordas Orquestrais, Ukuleles.
-        preco_max: preço máximo em reais (considera o preço promocional, se houver).
-        preco_min: preço mínimo em reais.
-        incluir_indisponiveis: True para listar também itens sem estoque, descontinuados ou em breve.
+        max_price: maximum price in BRL (uses the promotional price when there is one).
+        min_price: minimum price in BRL.
+        include_unavailable: True to also list out-of-stock, discontinued or coming-soon items.
     """
-    resultado = data.buscar_produtos(
-        termo=termo,
-        categoria=categoria,
-        preco_max=preco_max,
-        preco_min=preco_min,
-        apenas_disponiveis=not incluir_indisponiveis,
+    result = data.search_products(
+        query=query,
+        category=category,
+        max_price=max_price,
+        min_price=min_price,
+        available_only=not include_unavailable,
     )
-    if not resultado:
-        return _json({"resultado": [], "mensagem": "Nenhum produto encontrado com esses filtros."})
-    return _json({"resultado": resultado})
+    if not result:
+        return _json({"results": [], "message": "No products found with these filters."})
+    return _json({"results": result})
 
 
 @tool
-def detalhes_produto(nome_ou_id: str) -> str:
-    """Retorna preço, disponibilidade, promoção ativa e especificações de UM produto.
+def get_product_details(name_or_id: str) -> str:
+    """Returns price, availability, active promotion and specs of ONE product.
 
-    Use sempre que o cliente perguntar preço, estoque ou detalhes de um modelo
-    específico ("quanto custa o Takamine GD20?", "o Yamaha C40 tem em estoque?").
-    Se o produto estiver indisponível, a resposta já traz alternativas parecidas.
-    Se vier "ambiguo": true, pergunte ao cliente qual das opções ele quer.
+    Use whenever the customer asks about the price, stock or details of a specific
+    model ("quanto custa o Takamine GD20?", "o Yamaha C40 tem em estoque?").
+    If the product is unavailable, the result already includes similar alternatives.
+    If the result has "ambiguous": true, ask the customer which option they mean.
 
     Args:
-        nome_ou_id: nome (ou parte do nome) do produto, ou o ID numérico.
+        name_or_id: product name (or part of it), or its numeric ID.
     """
-    resultado = data.detalhes_produto(nome_ou_id)
-    if resultado is None:
-        return _json({"erro": "Produto não encontrado no catálogo."})
-    return _json(resultado)
+    result = data.get_product(name_or_id)
+    if result is None:
+        return _json({"error": "Product not found in the catalog."})
+    return _json(result)
 
 
 @tool
-def status_pedido(numero_pedido: str, email_ou_telefone: str) -> str:
-    """Consulta status, itens, rastreio e previsão de entrega de um pedido.
+def get_order_status(order_id: str, email_or_phone: str) -> str:
+    """Looks up the status, items, tracking code and estimated delivery of an order.
 
-    Só chame depois de ter OS DOIS dados do cliente: o número do pedido e o
-    e-mail ou telefone cadastrado. Se faltar algum, peça ao cliente antes.
-    A ferramenta confere a identidade (LGPD) e só devolve o pedido se o contato bater.
+    Only call it once you have BOTH pieces of information from the customer: the order
+    number and the e-mail or phone used in the purchase. If either is missing, ask first.
+    The tool verifies the customer's identity (LGPD) and only returns the order if the
+    contact matches.
 
     Args:
-        numero_pedido: número do pedido informado pelo cliente.
-        email_ou_telefone: e-mail ou telefone cadastrado na compra.
+        order_id: order number given by the customer.
+        email_or_phone: e-mail or phone registered in the purchase.
     """
-    return _json(data.status_pedido(numero_pedido, email_ou_telefone))
+    return _json(data.get_order_status(order_id, email_or_phone))
 
 
 @tool
-def consultar_politica(
-    secao: Literal[
-        "sobre_a_loja",
-        "horario",
-        "pagamento",
-        "trocas_e_devolucoes",
-        "frete_e_entrega",
-        "promocoes",
-        "atendimento",
-        "garantia",
-        "privacidade",
+def get_store_policy(
+    section: Literal[
+        "about_store",
+        "opening_hours",
+        "payment",
+        "returns_and_exchanges",
+        "shipping",
+        "promotions",
+        "customer_service",
+        "warranty",
+        "privacy",
     ],
 ) -> str:
-    """Consulta o manual oficial de políticas da loja.
+    """Looks up the store's official policy manual (in Portuguese).
 
-    Use para qualquer regra ou informação institucional, em vez de responder de memória:
-    - sobre_a_loja: endereço, telefone, e-mail, o que a loja vende (e o que NÃO vende)
-    - horario: horário de funcionamento
-    - pagamento: formas de pagamento, desconto no PIX, parcelamento
-    - trocas_e_devolucoes: arrependimento, defeito, troca por preferência, itens não elegíveis
-    - frete_e_entrega: valores e prazos de frete, transportadoras, rastreamento
-    - promocoes: calendário de campanhas e regras (cumulatividade, estoque)
-    - atendimento: como agir com produto esgotado, descontinuado, promoção expirada, reclamação
-    - garantia: garantia legal e do fabricante, o que não cobre
-    - privacidade: uso de dados pessoais (LGPD)
+    Use it for any rule or institutional information instead of answering from memory:
+    - about_store: address, phone, e-mail, what the store sells (and does NOT sell)
+    - opening_hours: opening hours
+    - payment: payment methods, PIX discount, installments
+    - returns_and_exchanges: right of withdrawal, defects, exchanges, non-eligible items
+    - shipping: shipping fees and times, carriers, tracking
+    - promotions: promotion calendar and rules (stacking, stock)
+    - customer_service: how to handle out-of-stock, discontinued, expired promotion, complaints
+    - warranty: legal and manufacturer warranty, what is not covered
+    - privacy: use of personal data (LGPD)
     """
-    return policies.consultar_politica(secao)
+    return policies.get_policy(section)
 
 
-TOOLS = [buscar_produtos, detalhes_produto, status_pedido, consultar_politica]
+TOOLS = [search_products, get_product_details, get_order_status, get_store_policy]
 
 
 if __name__ == "__main__":
-    print(buscar_produtos.invoke({"categoria": "ukulele", "preco_max": 300}))
+    print(search_products.invoke({"category": "ukulele", "max_price": 300}))
     print()
-    print(detalhes_produto.invoke({"nome_ou_id": "takamine gd20"}))
+    print(get_product_details.invoke({"name_or_id": "takamine gd20"}))
     print()
-    print(status_pedido.invoke({"numero_pedido": "17", "email_ou_telefone": "(67) 99999-0000"}))
+    print(get_order_status.invoke({"order_id": "17", "email_or_phone": "(67) 99999-0000"}))
     print()
-    print(consultar_politica.invoke({"secao": "trocas_e_devolucoes"})[:400])
+    print(get_store_policy.invoke({"section": "returns_and_exchanges"})[:300])
     print()
     for t in TOOLS:
         print(t.name, "->", list(t.args))

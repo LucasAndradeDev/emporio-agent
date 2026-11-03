@@ -1,9 +1,9 @@
-"""Extração e indexação do manual de políticas da loja.
+"""Extraction and indexing of the store's policy manual.
 
-O manual tem 8 páginas (~11 mil caracteres). Em vez de embeddings e banco vetorial,
-ele é dividido pelas seções numeradas do próprio documento, e o agente consulta a
-seção pelo tema. Para um documento deste tamanho e com estrutura clara, a busca por
-seção é exata, barata e fácil de auditar.
+The manual is 8 pages long (~11k characters). Instead of embeddings and a vector store,
+it is split by the document's own numbered sections and the agent looks up a section by
+topic. For a document this size, with a clear structure, section lookup is exact, free
+and easy to audit.
 """
 
 from __future__ import annotations
@@ -16,62 +16,61 @@ from pypdf import PdfReader
 
 PDF_PATH = Path(__file__).parent / "data" / "políticas_da_loja.pdf"
 
-# Chave usada pelo agente -> número da seção no manual.
-SECOES = {
-    "sobre_a_loja": 1,  # quem somos, endereço, telefone, o que a loja (não) vende
-    "horario": 2,
-    "pagamento": 3,  # formas de pagamento, desconto PIX, parcelamento
-    "trocas_e_devolucoes": 4,
-    "frete_e_entrega": 5,  # frete, prazos, rastreamento
-    "promocoes": 6,  # calendário e regras de promoções
-    "atendimento": 7,  # diretrizes de atendimento e situações especiais
-    "garantia": 8,
-    "privacidade": 9,  # LGPD
+# Topic key used by the agent -> section number in the manual.
+SECTIONS = {
+    "about_store": 1,  # who we are, address, phone, what the store does (not) sell
+    "opening_hours": 2,
+    "payment": 3,  # payment methods, PIX discount, installments
+    "returns_and_exchanges": 4,
+    "shipping": 5,  # shipping fees, delivery times, tracking
+    "promotions": 6,  # promotion calendar and rules
+    "customer_service": 7,  # service guidelines and special situations
+    "warranty": 8,
+    "privacy": 9,  # LGPD
 }
 
-_RUIDO = re.compile(r"^\s*(Página \d+|Empório da Música Manual de Políticas e Procedimentos)\s*$")
-_TITULO = re.compile(r"^(\d{1,2})\. (.+)$")
+_NOISE = re.compile(r"^\s*(Página \d+|Empório da Música Manual de Políticas e Procedimentos)\s*$")
+_HEADING = re.compile(r"^(\d{1,2})\. (.+)$")
 
 
 @lru_cache(maxsize=1)
-def texto_manual() -> str:
-    paginas = PdfReader(PDF_PATH).pages[1:]  # a página 1 é só a capa
-    linhas = []
-    for pagina in paginas:
-        for linha in pagina.extract_text(extraction_mode="layout").splitlines():
-            linha = re.sub(r"[ \t]+", " ", linha).strip()
-            if linha and not _RUIDO.match(linha):
-                linhas.append(linha)
-    return "\n".join(linhas)
+def manual_text() -> str:
+    pages = PdfReader(PDF_PATH).pages[1:]  # page 1 is the cover
+    lines = []
+    for page in pages:
+        for line in page.extract_text(extraction_mode="layout").splitlines():
+            line = re.sub(r"[ \t]+", " ", line).strip()
+            if line and not _NOISE.match(line):
+                lines.append(line)
+    return "\n".join(lines)
 
 
 @lru_cache(maxsize=1)
-def secoes_manual() -> dict[int, str]:
-    """Divide o manual nas seções de primeiro nível (1. ..., 2. ..., ...)."""
-    secoes: dict[int, list[str]] = {}
-    atual = 0
-    for linha in texto_manual().splitlines():
-        titulo = _TITULO.match(linha)
-        # Só conta como título o número da próxima seção; isso evita confundir
-        # listas numeradas internas (ex.: "2. Entendimento" no fluxo da seção 7.2).
-        if titulo and int(titulo.group(1)) == atual + 1:
-            atual += 1
-        if atual:
-            secoes.setdefault(atual, []).append(linha)
-    return {numero: "\n".join(linhas) for numero, linhas in secoes.items()}
+def manual_sections() -> dict[int, str]:
+    """Splits the manual into its top-level sections (1. ..., 2. ..., ...)."""
+    sections: dict[int, list[str]] = {}
+    current = 0
+    for line in manual_text().splitlines():
+        heading = _HEADING.match(line)
+        # Only the next section number counts as a heading; this avoids mistaking
+        # numbered lists inside a section (e.g. "2. Entendimento" in section 7.2).
+        if heading and int(heading.group(1)) == current + 1:
+            current += 1
+        if current:
+            sections.setdefault(current, []).append(line)
+    return {number: "\n".join(lines) for number, lines in sections.items()}
 
 
-def consultar_politica(secao: str) -> str:
-    numero = SECOES.get(secao)
-    if numero is None:
-        return f"Seção desconhecida. Opções: {', '.join(SECOES)}."
-    return secoes_manual().get(numero, "Seção não encontrada no manual.")
+def get_policy(section: str) -> str:
+    number = SECTIONS.get(section)
+    if number is None:
+        return f"Unknown section. Options: {', '.join(SECTIONS)}."
+    return manual_sections().get(number, "Section not found in the manual.")
 
 
 if __name__ == "__main__":
-    for chave, numero in SECOES.items():
-        texto = consultar_politica(chave)
-        print(f"== {chave} (seção {numero}, {len(texto)} caracteres) ==")
-        print(texto.splitlines()[0])
+    for key, number in SECTIONS.items():
+        text = get_policy(key)
+        print(f"== {key} (section {number}, {len(text)} chars) == {text.splitlines()[0]}")
     print()
-    print(consultar_politica("horario"))
+    print(get_policy("opening_hours"))
