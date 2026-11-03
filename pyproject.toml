@@ -1,0 +1,14 @@
+[project]
+name = "emporio-agent"
+version = "0.1.0"
+description = "Agente de atendimento da Empório da Música (desafio técnico AI Engineer - Artefact)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "langchain>=1.4.8",
+    "langchain-google-genai>=4.4.2",
+    "langgraph>=1.2.19",
+    "pandas>=3.1.0",
+    "pypdf>=6.21.4",
+    "python-dotenv>=1.2.4",
+]
