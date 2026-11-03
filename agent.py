@@ -30,9 +30,15 @@ DEFAULT_MODEL = "gemini-3.5-flash"
 
 
 def _is_transient_error(error: Exception) -> bool:
-    """The free tier sometimes returns 403/429/503 for a moment under load."""
+    """The free tier sometimes returns 403/429/503 for a moment under load.
+
+    A 429 caused by the *daily* quota is not transient (it only resets the next day),
+    so it is not retried.
+    """
     cause = error.__cause__ or error
-    return isinstance(cause, APIError) and cause.code in {403, 429, 500, 503}
+    if not isinstance(cause, APIError) or cause.code not in {403, 429, 500, 503}:
+        return False
+    return not (cause.code == 429 and "PerDay" in str(cause))
 
 
 def build_agent(checkpointer=None):
