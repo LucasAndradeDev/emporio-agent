@@ -16,6 +16,9 @@ import data
 import policies
 
 
+SEARCH_PAGE_SIZE = 10
+
+
 def _json(value) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)
 
@@ -27,12 +30,15 @@ def search_products(
     max_price: float | None = None,
     min_price: float | None = None,
     include_unavailable: bool = False,
+    offset: int = 0,
 ) -> str:
     """Searches the store's instrument catalog.
 
     Use when the customer wants options or recommendations: "violões até R$ 1000",
     "tem guitarra Fender?", "ukulele para iniciante". Results are sorted from cheapest
     to most expensive and already include list price, PIX price or active promotion.
+    At most 10 results come per call. If "remaining" is above 0, tell the customer how many
+    more options exist, and call again with "next_offset" to get them.
 
     Args:
         query: words from the product name or description (brand, model, feature). E.g. "fender", "7 cordas", "nylon".
@@ -41,6 +47,7 @@ def search_products(
         max_price: maximum price in BRL (uses the promotional price when there is one).
         min_price: minimum price in BRL.
         include_unavailable: True to also list out-of-stock, discontinued or coming-soon items.
+        offset: how many results to skip (use "next_offset" from the previous call).
     """
     result = data.search_products(
         query=query,
@@ -51,7 +58,12 @@ def search_products(
     )
     if not result:
         return _json({"results": [], "message": "No products found with these filters."})
-    return _json({"results": result})
+    page = result[offset : offset + SEARCH_PAGE_SIZE]
+    remaining = max(len(result) - offset - len(page), 0)
+    response = {"total_found": len(result), "remaining": remaining, "results": page}
+    if remaining:
+        response["next_offset"] = offset + len(page)
+    return _json(response)
 
 
 @tool

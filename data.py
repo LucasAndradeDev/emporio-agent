@@ -166,7 +166,6 @@ def search_products(
     max_price: float | None = None,
     min_price: float | None = None,
     available_only: bool = True,
-    limit: int = 10,
 ) -> list[dict]:
     """Searches products by words in the name/description, category and price range.
 
@@ -191,7 +190,7 @@ def search_products(
         df = df[df["available"]]
 
     df = df.sort_values("effective_price")
-    return [_product_to_dict(row) for _, row in df.head(limit).iterrows()]
+    return [_product_to_dict(row) for _, row in df.iterrows()]
 
 
 def get_product(name_or_id: str | int) -> dict | None:
@@ -230,6 +229,10 @@ def _alternatives(row: pd.Series, limit: int = 3) -> list[dict]:
     return [_product_to_dict(r) for _, r in closest.iterrows()]
 
 
+# Same message for a missing order and a failed check, so a lookup does not reveal which orders exist.
+IDENTITY_ERROR = "Could not verify the order with the information provided."
+
+
 def get_order_status(order_id: int | str, email_or_phone: str) -> dict:
     """Order status, released only if the contact matches the order's customer (LGPD)."""
     tables = load_data()
@@ -239,7 +242,7 @@ def get_order_status(order_id: int | str, email_or_phone: str) -> dict:
         return {"error": "Invalid order number."}
     order = orders[orders["order_id"] == int(order_id)]
     if order.empty:
-        return {"error": "Order not found."}
+        return {"error": IDENTITY_ERROR}
     order = order.iloc[0]
     customer = customers[customers["customer_id"] == order["customer_id"]].iloc[0]
 
@@ -250,8 +253,7 @@ def get_order_status(order_id: int | str, email_or_phone: str) -> dict:
         digits = digits_only(contact)
         verified = len(digits) >= 8 and customer["phone_digits"].endswith(digits)  # with or without area code
     if not verified:
-        # Generic message: does not reveal whether the order exists for someone else.
-        return {"error": "Could not verify the customer's identity with the information provided."}
+        return {"error": IDENTITY_ERROR}
 
     items = tables["order_items"][tables["order_items"]["order_id"] == order["order_id"]].merge(
         tables["products"][["product_id", "name"]], on="product_id", how="left"

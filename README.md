@@ -102,8 +102,8 @@ Good function-calling support and a free tier, so anyone can run the project wit
 - **Promotions:** only rows with `is_active = 1` are applied. If a product had more than one active promotion, the largest discount would win (promotions do not stack, manual 6.2). The promotional price is pre-computed so the model never does the math.
 - **Availability:** derived from `status` and `stock_quantity` into explicit states: available, temporarily out of stock, discontinued, coming soon. Unavailable products come back with up to three available alternatives from the same category with the closest price (manual 7.3).
 - **PIX price:** pre-computed (5% off list price) only for products *without* an active promotion.
-- **Search:** accent-insensitive, matches all typed words in the product name first and falls back to the description; categories accept singular/plural ("violão" → "Violões").
-- **Orders and privacy (LGPD):** an order is only returned if the e-mail or phone matches the customer who placed it; phone matching compares digits only and accepts numbers with or without area code. On a mismatch the message is generic, so it does not reveal whether the order exists.
+- **Search:** accent-insensitive, matches all typed words in the product name first and falls back to the description; categories accept singular/plural ("violão" → "Violões"). Each call returns up to 10 results plus the total found, and the agent can fetch the rest with `offset`.
+- **Orders and privacy (LGPD):** an order is only returned if the e-mail or phone matches the customer who placed it; phone matching compares digits only and accepts numbers with or without area code. A missing order and a failed check return the same message, so a lookup does not reveal which orders exist.
 - Payment codes (`credit_12x`, `boleto`…) and order statuses are translated into readable text before reaching the model.
 
 ---
